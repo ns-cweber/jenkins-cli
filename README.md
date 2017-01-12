@@ -5,8 +5,8 @@ JENKINS
 
 ## Installation
 
-`go get github.com/ns-cweber/jenkins`
-`echo "export JENKINS_HOST_URL={host_url}" >> ~/.bash_profile`
+1. `go get github.com/ns-cweber/jenkins`
+2. `echo "export JENKINS_HOST_URL={host_url}" >> ~/.bash_profile`
 
 ## Usage
 
