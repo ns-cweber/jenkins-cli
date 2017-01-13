@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"fmt"
@@ -8,14 +8,14 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-type credentials struct{ username, password string }
+type Credentials struct{ Username, Password string }
 
-func getCredentials(prompt string) (credentials, error) {
+func GetCredentials(prompt string) (Credentials, error) {
 	const service string = "ns_ldap"
 
 	user, err := user.Current()
 	if err != nil {
-		return credentials{}, err
+		return Credentials{}, err
 	}
 
 	password, err := keyring.Get(service, user.Username)
@@ -24,14 +24,14 @@ func getCredentials(prompt string) (credentials, error) {
 			fmt.Print(prompt)
 			data, err := gopass.GetPasswd()
 			if err != nil {
-				return credentials{}, err
+				return Credentials{}, err
 			}
 
 			password := string(data)
 			err = keyring.Set(service, user.Username, password)
-			return credentials{user.Username, password}, err
+			return Credentials{user.Username, password}, err
 		}
-		return credentials{}, err
+		return Credentials{}, err
 	}
-	return credentials{user.Username, password}, nil
+	return Credentials{user.Username, password}, nil
 }
