@@ -101,7 +101,8 @@ func main() {
 		}
 
 		fmt.Println(
-			formatJenkinsTimestamp(result.Build.Timestamp),
+			// The timestamp is really ugly, but it might be useful
+			// formatJenkinsTimestamp(result.Build.Timestamp),
 			buildStatus(result.Build.Result),
 			parseDesc(result.Build.Description),
 		)
