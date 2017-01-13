@@ -3,6 +3,8 @@ JENKINS
 
 `jenkins` is a CLI for querying a Jenkins job for build status and description.
 
+![screenshot](screenshot.png)
+
 ## Installation
 
 1. `go get github.com/ns-cweber/jenkins-cli/cmd/jenkins`
