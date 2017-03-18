@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ns-cweber/jenkins-cli/auth"
+	"github.com/ns-cweber/jenkins-cli/lib/auth"
 )
 
 // Fetches the body from `url` using `auth`. Returns any errors encountered

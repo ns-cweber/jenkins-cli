@@ -6,10 +6,10 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/ns-cweber/cli"
-	"github.com/ns-cweber/jenkins-cli"
-	"github.com/ns-cweber/jenkins-cli/auth"
-	"github.com/ns-cweber/jenkins-cli/boolsearch"
-	"github.com/ns-cweber/jenkins-cli/config"
+	"github.com/ns-cweber/jenkins-cli/lib/auth"
+	"github.com/ns-cweber/jenkins-cli/lib/boolsearch"
+	"github.com/ns-cweber/jenkins-cli/lib/config"
+	"github.com/ns-cweber/jenkins-cli/lib/jenkins"
 	"github.com/olekukonko/tablewriter"
 )
 

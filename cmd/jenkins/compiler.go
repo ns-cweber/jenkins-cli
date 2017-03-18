@@ -1,9 +1,27 @@
 package main
 
 import (
-	jenkins "github.com/ns-cweber/jenkins-cli"
-	"github.com/ns-cweber/jenkins-cli/boolsearch"
+	"github.com/ns-cweber/jenkins-cli/lib/boolsearch"
+	"github.com/ns-cweber/jenkins-cli/lib/jenkins"
 )
+
+func get(b jenkins.Build, s string) string {
+	switch s {
+	case "number":
+		return b.Number
+	case "worker":
+		return b.BuiltOn
+	case "status":
+		return string(b.Result)
+	default:
+		for _, action := range b.Actions {
+			if action.Class == jenkins.ActionClassParameters {
+				return action.Parameters.Get(s)
+			}
+		}
+		return ""
+	}
+}
 
 type compiler struct {
 	f func(b jenkins.Build) bool
