@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/ns-cweber/jenkins-cli"
 	"github.com/ns-cweber/jenkins-cli/auth"
+	"github.com/ns-cweber/jenkins-cli/config"
 )
-
-const timeFmt = "2006-01-02T15:04"
 
 var jenkinsHost string
 var job string
@@ -22,30 +20,13 @@ func die(v ...interface{}) {
 }
 
 func init() {
-	jenkinsHost = os.Getenv("JENKINS_HOST_URL")
-	if jenkinsHost == "" {
-		die("JENKINS_HOST_URL is empty")
-	}
-	if !strings.HasSuffix(jenkinsHost, "/") {
-		jenkinsHost += "/"
-	}
+	jenkinsHost = config.MustHost()
 
 	if len(os.Args) > 1 {
 		job = os.Args[1]
 	} else {
-		job = os.Getenv("JENKINS_DEFAULT_JOB")
+		job = config.MustDefaultJob()
 	}
-
-	if job == "" {
-		die("Job not specified. Pass a job name or set JENKINS_DEFAULT_JOB")
-	}
-}
-
-// Parses a Jenkins timestamp (an integer number of milliseconds since the unix
-// epoch) into the format YYYY-MM-DDThh:mm. Time is represented on a 24 hour
-// clock with zero-padded hours.
-func formatJenkinsTimestamp(timestamp int64) string {
-	return time.Unix(timestamp/1000, timestamp%1000*1000).Format(timeFmt)
 }
 
 // Parses the relevant data out of `desc` (Jenkins encodes the descriptions
@@ -64,18 +45,18 @@ func parseDesc(desc string) string {
 
 // Jenkins represents RUNNING as an empty string; let's expand that in our
 // output.
-func buildStatus(result string) string {
+func buildStatus(result jenkins.BuildResult) string {
 	switch result {
-	case "":
+	case jenkins.BuildResultPending:
 		return color.YellowString("RUNNING")
-	case "SUCCESS":
+	case jenkins.BuildResultSuccess:
 		return color.GreenString("SUCCESS")
-	case "FAILURE":
+	case jenkins.BuildResultFailure:
 		return color.RedString("FAILURE")
-	case "ABORTED":
+	case jenkins.BuildResultAborted:
 		return color.MagentaString("ABORTED")
 	default:
-		return result
+		return string(result)
 	}
 }
 
@@ -102,7 +83,7 @@ func main() {
 
 		fmt.Println(
 			// The timestamp is really ugly, but it might be useful
-			// formatJenkinsTimestamp(result.Build.Timestamp),
+			// config.FormatTimestamp(result.Build.Timestamp),
 			buildStatus(result.Build.Result),
 			parseDesc(result.Build.Description),
 		)

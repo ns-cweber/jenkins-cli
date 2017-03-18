@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/ns-cweber/jenkins-cli/auth"
@@ -19,29 +21,138 @@ func get(url string, auth auth.Credentials) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(auth.Username, auth.Password)
-	rsp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
+
+	path := strings.TrimRight(req.URL.Path, "/")
+	if strings.HasSuffix(path, "/api/json") {
+		path = path[:len(path)-len("/api/json")]
 	}
 
-	if rsp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(
-			"Bad status code for GET '%s': wanted 200, got %d",
-			url,
-			rsp.StatusCode,
-		)
+	if strings.HasSuffix(path, "quill3_build_deploy") {
+		return os.Open("/Users/cweber/Downloads/quill3_build_deploy.json")
 	}
 
-	return rsp.Body, nil
+	return os.Open(filepath.Join("/tmp/foodir", path))
+
+	//req.SetBasicAuth(auth.Username, auth.Password)
+	//rsp, err := http.DefaultClient.Do(req)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	//if rsp.StatusCode != http.StatusOK {
+	//	return nil, fmt.Errorf(
+	//		"Bad status code for GET '%s': wanted 200, got %d",
+	//		url,
+	//		rsp.StatusCode,
+	//	)
+	//}
+
+	//path := strings.TrimRight(req.URL.Path, "/")
+	//if strings.HasSuffix(path, "/api/json") {
+	//	path = path[:len(path)-len("/api/json")]
+	//}
+	//dir := filepath.Dir(path)
+	//if err := os.MkdirAll(filepath.Join("/tmp/foodir", dir), 0777); err != nil {
+	//	log.Println("ERR:", err)
+	//	return rsp.Body, nil
+	//}
+
+	//file, err := os.Create(filepath.Join("/tmp/foodir", path))
+	//if err != nil {
+	//	log.Println("ERR:", err)
+	//	return rsp.Body, nil
+	//}
+	//defer rsp.Body.Close()
+
+	//if _, err := io.Copy(file, rsp.Body); err != nil {
+	//	return nil, err
+	//}
+
+	//return file, nil
 }
 
-// A `build` epresents a Jenkins build
+type CauseClass string
+
+const CauseClassUpstream CauseClass = "hudson.model.Cause$UpstreamCause"
+const CauseClassUserID CauseClass = "hudson.model.Cause$UserIdCause"
+
+// `CauseNaginator` seems to be a retry plugin; `Causes` of this class seem to
+// have a single `"shortDescription"` member that looks like this: `"Started by
+// Naginator after build #1971 failure"`.
+const CauseNaginator CauseClass = "com.chikli.hudson.plugin.naginator.NaginatorCause"
+
+// `Cause` contains the cause data for a particular `hudson.model.CauseAction`.
+type Cause struct {
+	// `Class` identifies the Java class of the cause. This tells us which
+	// fields are relevant for a given cause.
+	Class CauseClass `json:"_class"`
+
+	// `ShortDescription` is used by `hudson.model.Cause$UpstreamCause`.
+	ShortDescription string `json:"shortDescription"`
+
+	// `UpstreamBuild` is used by `hudson.model.Cause$UpstreamCause`.
+	UpstreamBuild int `json:"upstreamBuild"`
+
+	// `UpstreamProject` is used by `hudson.model.Cause$UpstreamCause`.
+	UpstreamProject string `json:"upstreamProject"`
+
+	// `UpstreamURL` contains the path part of the upstream URL (the scheme and
+	// host information are excluded). For example, `/job/{project}`.  It is
+	// used by `hudson.model.Cause$UpstreamCause`.
+	UpstreamURL string `json:"upstreamUrl"`
+}
+
+type ActionClass string
+
+const ActionClassParameters ActionClass = "hudson.model.ParametersAction"
+const ActionClassCause ActionClass = "hudson.model.CauseAction"
+
+// `Parameters` is a collection of key/value pairs.
+type Parameters []struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// `Get` retrieves the value for the parameter named `name` or an empty string
+// if `name` is not found.
+func (ps Parameters) Get(name string) string {
+	for _, p := range ps {
+		if p.Name == name {
+			return p.Value
+		}
+	}
+	return ""
+}
+
+// `Action` contains information describing an action related to a `Build`.
+type Action struct {
+	// `Class` identifies the Java class of the action. This tells us which
+	// fields are relevant for a given action.
+	Class ActionClass `json:"_class"`
+
+	// `Parameters` contains the parameters for an action of class
+	// `hudson.model.ParametersAction`
+	Parameters Parameters `json:"parameters"`
+
+	// `Causes` contains the cause data for this action. It is used by class
+	// `hudson.model.CauseAction`.
+	Causes []Cause
+}
+
+type BuildResult string
+
+const BuildResultAborted BuildResult = "ABORTED"
+const BuildResultFailure BuildResult = "FAILURE"
+const BuildResultPending BuildResult = ""
+const BuildResultSuccess BuildResult = "SUCCESS"
+
+// A `build` represents a Jenkins build
 type Build struct {
-	Number      string `json:"id"`
-	Description string `json:"description"`
-	Result      string `json:"result"`
-	BuiltOn     string `json:"builtOn"`
+	Number      string      `json:"id"`
+	Description string      `json:"description"`
+	Result      BuildResult `json:"result"`
+	BuiltOn     string      `json:"builtOn"`
+	Actions     []Action    `json:"actions"`
 
 	// milliseconds from unix epoch
 	Timestamp int64 `json:"timestamp"`
@@ -87,8 +198,8 @@ func (c Client) getAsync(urls []string) <-chan Result {
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go func() {
-			var result Result
 			for {
+				var result Result
 				// grab the next index
 				lock.Lock()
 				result.Index = cursor
