@@ -3,45 +3,17 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/fatih/color"
+	"github.com/ns-cweber/cli"
 	"github.com/ns-cweber/jenkins-cli"
 	"github.com/ns-cweber/jenkins-cli/auth"
+	"github.com/ns-cweber/jenkins-cli/boolsearch"
 	"github.com/ns-cweber/jenkins-cli/config"
+	"github.com/olekukonko/tablewriter"
 )
 
-var jenkinsHost string
-var job string
-
-func die(v ...interface{}) {
-	fmt.Fprintln(os.Stderr, v...)
-	os.Exit(-1)
-}
-
-func init() {
-	jenkinsHost = config.MustHost()
-
-	if len(os.Args) > 1 {
-		job = os.Args[1]
-	} else {
-		job = config.MustDefaultJob()
-	}
-}
-
-// Parses the relevant data out of `desc` (Jenkins encodes the descriptions
-// with the format: `<a title="{desc}", href="{href}">{buildNumber}: </a>
-// {desc}`
-func parseDesc(desc string) string {
-	const prefix string = "<a title=\""
-	if !strings.HasPrefix(desc, prefix) {
-		return desc
-	}
-	if end := strings.Index(desc, "\" href=\""); end > -1 {
-		return desc[len(prefix):end]
-	}
-	return desc
-}
+var table = tablewriter.NewWriter(os.Stdout)
 
 // Jenkins represents RUNNING as an empty string; let's expand that in our
 // output.
@@ -61,33 +33,85 @@ func buildStatus(result jenkins.BuildResult) string {
 }
 
 func main() {
-	auth, err := auth.GetCredentials("Password:")
-	if err != nil {
-		die(err)
+	app := cli.Command{
+		Name:        os.Args[0],
+		Description: "A Jenkins querying cli",
+		Arguments: []cli.Argument{{
+			Name:        "JOB",
+			Description: "The job to query",
+			Required:    true,
+		}, {
+			Name:        "QUERY",
+			Description: "The filter query. E.g., 'status=SUCCESS&FUNCTION=longrunning'",
+			Required:    false,
+			Default:     "",
+		}},
+		Action: func(args []string) error {
+			auth, err := auth.GetCredentials("Password:")
+			if err != nil {
+				return fmt.Errorf("Error getting credentials: %v", err)
+			}
+
+			filter, err := boolsearch.ParseString(args[1])
+			if err != nil {
+				fmt.Errorf("Error parsing query: %v", err)
+			}
+
+			client := jenkins.Client{auth, config.MustHost()}
+			results, err := client.JobBuilds(args[0])
+			if err != nil {
+				fmt.Errorf("Error getting build info: %v", err)
+			}
+			table.SetHeader([]string{
+				"STATUS",
+				"DATE",
+				"GIT REF",
+				"BUILD NUM",
+				"CAUSE",
+			})
+
+			for result := range results {
+				if result.Build.Result != jenkins.BuildResultSuccess {
+					continue
+				}
+				var c compiler
+				filter.Visit(&c)
+				if !c.f(result.Build) {
+					continue
+				}
+				var causeDesc string
+			ACTIONS_LOOP:
+				for _, action := range result.Build.Actions {
+					if action.Class == jenkins.ActionClassCause {
+						for _, cause := range action.Causes {
+							// If we find a user cause, set the description and
+							// stop looking; we prefer to display a user cause.
+							if cause.Class == jenkins.CauseClassUserID {
+								causeDesc = cause.ShortDescription
+								break ACTIONS_LOOP
+							}
+
+							// Hang onto the most recent cause description in
+							// case we never come across a user cause
+							causeDesc = cause.ShortDescription
+						}
+					}
+				}
+				table.Append([]string{
+					buildStatus(result.Build.Result),
+					config.FormatTimestamp(result.Build.Timestamp),
+					get(result.Build, "GIT_REF"),
+					result.Build.Number,
+					causeDesc,
+				})
+			}
+			table.Render()
+			return nil
+		},
 	}
 
-	client := jenkins.Client{auth, jenkinsHost}
-	results, err := client.JobBuilds(job)
-	if err != nil {
-		die(err)
+	if err := app.Run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
 	}
-
-	// print each result
-	exitCode := 0
-	for result := range results {
-		if result.Err != nil {
-			fmt.Fprintln(os.Stderr, result.Err)
-			exitCode = -1
-			continue
-		}
-
-		fmt.Println(
-			// The timestamp is really ugly, but it might be useful
-			// config.FormatTimestamp(result.Build.Timestamp),
-			buildStatus(result.Build.Result),
-			parseDesc(result.Build.Description),
-		)
-	}
-
-	os.Exit(exitCode)
 }
