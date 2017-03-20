@@ -12,8 +12,13 @@ func (e Empty) Visit(visitor Visitor) {
 	visitor.VisitEmpty(e)
 }
 
+func (e Empty) String() string {
+	return "()"
+}
+
 type Expression interface {
 	Visit(Visitor)
+	String() string
 }
 
 type CmpOp string
@@ -32,6 +37,10 @@ func (c Comparison) Visit(visitor Visitor) {
 	visitor.VisitComparison(c)
 }
 
+func (c Comparison) String() string {
+	return c.Left + " " + string(c.Op) + " " + c.Right
+}
+
 type ConjOp string
 
 const (
@@ -47,4 +56,8 @@ type Conjugation struct {
 
 func (c Conjugation) Visit(visitor Visitor) {
 	visitor.VisitConjugation(c)
+}
+
+func (c Conjugation) String() string {
+	return c.Left.String() + " " + string(c.Op) + " " + c.Right.String()
 }

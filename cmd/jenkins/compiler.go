@@ -49,7 +49,20 @@ func (c *compiler) VisitConjugation(conj boolsearch.Conjugation) {
 	conj.Left.Visit(&left)
 	conj.Right.Visit(&right)
 
-	c.f = func(b jenkins.Build) bool { return left.f(b) == right.f(b) }
+	if conj.Op == boolsearch.ConjOpAnd {
+		c.f = func(b jenkins.Build) bool {
+			return left.f(b) && right.f(b)
+		}
+		return
+	}
+
+	if conj.Op == boolsearch.ConjOpOr {
+		c.f = func(b jenkins.Build) bool {
+			return left.f(b) || right.f(b)
+		}
+		return
+	}
+	panic("Invalid conjugation operator: '" + string(conj.Op) + "'")
 }
 
 func (c *compiler) VisitEmpty(e boolsearch.Empty) {

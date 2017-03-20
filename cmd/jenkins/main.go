@@ -60,7 +60,7 @@ func main() {
 			client := jenkins.Client{auth, config.MustHost()}
 			results, err := client.JobBuilds(args[0])
 			if err != nil {
-				fmt.Errorf("Error getting build info: %v", err)
+				return fmt.Errorf("Error getting build info: %v", err)
 			}
 			table.SetHeader([]string{
 				"STATUS",
@@ -71,9 +71,6 @@ func main() {
 			})
 
 			for result := range results {
-				if result.Build.Result != jenkins.BuildResultSuccess {
-					continue
-				}
 				var c compiler
 				filter.Visit(&c)
 				if !c.f(result.Build) {

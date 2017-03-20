@@ -7,8 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/ns-cweber/jenkins-cli/lib/auth"
@@ -22,53 +20,21 @@ func get(url string, auth auth.Credentials) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	path := strings.TrimRight(req.URL.Path, "/")
-	if strings.HasSuffix(path, "/api/json") {
-		path = path[:len(path)-len("/api/json")]
+	req.SetBasicAuth(auth.Username, auth.Password)
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
 	}
 
-	if strings.HasSuffix(path, "quill3_build_deploy") {
-		return os.Open("/Users/cweber/Downloads/quill3_build_deploy.json")
+	if rsp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(
+			"Bad status code for GET '%s': wanted 200, got %d",
+			url,
+			rsp.StatusCode,
+		)
 	}
 
-	return os.Open(filepath.Join("/tmp/foodir", path))
-
-	//req.SetBasicAuth(auth.Username, auth.Password)
-	//rsp, err := http.DefaultClient.Do(req)
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	//if rsp.StatusCode != http.StatusOK {
-	//	return nil, fmt.Errorf(
-	//		"Bad status code for GET '%s': wanted 200, got %d",
-	//		url,
-	//		rsp.StatusCode,
-	//	)
-	//}
-
-	//path := strings.TrimRight(req.URL.Path, "/")
-	//if strings.HasSuffix(path, "/api/json") {
-	//	path = path[:len(path)-len("/api/json")]
-	//}
-	//dir := filepath.Dir(path)
-	//if err := os.MkdirAll(filepath.Join("/tmp/foodir", dir), 0777); err != nil {
-	//	log.Println("ERR:", err)
-	//	return rsp.Body, nil
-	//}
-
-	//file, err := os.Create(filepath.Join("/tmp/foodir", path))
-	//if err != nil {
-	//	log.Println("ERR:", err)
-	//	return rsp.Body, nil
-	//}
-	//defer rsp.Body.Close()
-
-	//if _, err := io.Copy(file, rsp.Body); err != nil {
-	//	return nil, err
-	//}
-
-	//return file, nil
+	return rsp.Body, nil
 }
 
 type CauseClass string
